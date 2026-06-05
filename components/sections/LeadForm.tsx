@@ -32,7 +32,8 @@ export function LeadForm({ id }: { id: string }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [values, setValues] = useState<Values>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const set = (k: keyof Values, v: string) =>
     setValues((s) => ({ ...s, [k]: v }));
@@ -57,10 +58,36 @@ export function LeadForm({ id }: { id: string }) {
     if (values.agency.trim().length < 2) errs.agency = "Required";
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
+
     setStatus("loading");
-    // Placeholder submit — wire to your CRM / API route here.
-    await new Promise((r) => setTimeout(r, 1200));
-    setStatus("success");
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: values.firstName,
+          lastName: values.lastName,
+          phone: values.phone,
+          email: values.email,
+          agency_name: values.agency,
+          team_size: values.teamSize,
+          annual_issued_premium: values.aip,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(
+          data?.error || "Something went wrong. Please try again."
+        );
+      }
+      setStatus("success");
+    } catch (err) {
+      setStatus("error");
+      setSubmitError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again."
+      );
+    }
   };
 
   const field =
@@ -90,8 +117,7 @@ export function LeadForm({ id }: { id: string }) {
               Application received
             </h3>
             <p className="mt-3 max-w-sm text-white/60">
-              We&rsquo;ll review your numbers and reach out if your agency is a
-              fit for the 9X plan. Watch your phone and inbox.
+              We&rsquo;ll review your agency and follow up shortly.
             </p>
           </motion.div>
         ) : (
@@ -182,6 +208,15 @@ export function LeadForm({ id }: { id: string }) {
                       )}
                     </button>
                   </div>
+
+                  {status === "error" && submitError && (
+                    <p
+                      role="alert"
+                      className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-center text-sm font-medium text-red-300"
+                    >
+                      {submitError}
+                    </p>
+                  )}
                 </motion.form>
               )}
             </AnimatePresence>
